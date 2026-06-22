@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Typography, TextField, Button, IconButton, InputAdornment } from "@mui/material";
+import { Box, Typography, TextField, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 const CreateRoom = () => {
@@ -15,7 +15,7 @@ const CreateRoom = () => {
                 fullWidth
                 sx={{ mb: 2 }}
             />
-            <Button onClick={() => navigate("/login")} fullWidth>
+            <Button onClick={() => navigate("/prompts")} fullWidth>
                 click
             </Button>
         </Box>
