@@ -1,10 +1,12 @@
 import React from "react";
 import { Box, Typography, TextField, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { useWebSocket } from "../context/WebSocketContext";
 
 const CreateRoom = () => {
 
     const navigate = useNavigate();
+    const { socket, connect } = useWebSocket();
 
     return (
         <Box sx={{ p: 4, maxWidth: 400, margin: "0 auto" }}>
@@ -15,8 +17,11 @@ const CreateRoom = () => {
                 fullWidth
                 sx={{ mb: 2 }}
             />
-            <Button onClick={() => navigate("/prompts")} fullWidth>
-                click
+            <Button onClick={() => {
+                connect();
+                navigate("/prompts");
+            }} fullWidth>
+                enter code
             </Button>
         </Box>
     );
