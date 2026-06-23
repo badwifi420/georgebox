@@ -6,10 +6,12 @@ const WebSocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
     const [roomId, setRoomid] = useState(null);
 
-    const connect = (roomCode) => {
+    const connect = (roomCode, playerName , isCreating) => {
         return new Promise((resolve, reject) => {
-            setRoomid(roomCode);
-            const ws = new WebSocket(`ws://localhost:8000?roomCode=${roomId}`);
+            const query = isCreating
+                ? `create=true&name=${encodeURIComponent(playerName)}`
+                : `roomCode=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`;
+            const ws = new WebSocket(`ws://192.168.178.27:8000?${query}`);
 
             ws.addEventListener("open", () => {
             });
@@ -18,6 +20,7 @@ const WebSocketProvider = ({ children }) => {
                 const data = JSON.parse(event.data);
                 if (data.type === "joined") {
                     setSocket(ws);
+                    setRoomid(data.roomCode);
                     resolve(ws);
                 } else if (data.type === "error") {
                     reject(new Error(data.message));
@@ -43,7 +46,7 @@ const WebSocketProvider = ({ children }) => {
     }
 
     return (
-        <WebSocketContext value={{ socket, connect, disconnect, sendPrompt}}>
+        <WebSocketContext value={{ socket, connect, disconnect, sendPrompt, roomId}}>
             {children}
         </WebSocketContext>
     );
