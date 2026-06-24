@@ -1,13 +1,21 @@
 import { Box, Typography, Avatar, Stack, Button } from "@mui/material";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import PersonIcon from '@mui/icons-material/Person';
 
-const MAX_PLAYERS = 8; // adjust to whatever georgebox's actual cap is
+const MAX_PLAYERS = 8;
 
 const Lobby = () => {
     const { socket, roomId } = useWebSocket();
     const [players, setPlayers] = useState([]);
+
+    const navigate = useNavigate();
+
+    const handleStart = () => {
+        socket.send(JSON.stringify({type: "start", roomCode: roomId}));
+        navigate("/hostPrompt");
+    }
 
     useEffect(() => {
         if (!socket) return;
@@ -64,7 +72,7 @@ const Lobby = () => {
                 ))}
             </Box>
 
-            <Button fullWidth variant="contained" disabled={players.length === 0}>
+            <Button onClick={handleStart} fullWidth variant="contained" disabled={players.length === 0}>
                 Start Game
             </Button>
         </Box>

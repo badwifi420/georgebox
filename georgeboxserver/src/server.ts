@@ -32,11 +32,13 @@ class Player {
     id: string;
     name: string;
     answers: string[];
+    socket: WebSocket;
 
-    constructor(name: string) {
+    constructor(name: string, socket: WebSocket) {
         this.id = uid();
         this.name = name;
         this.answers = [];
+        this.socket = socket;
     }
 }
 
@@ -87,7 +89,7 @@ wss.on('connection', (socket, request) => {
         }
 
         const room = rooms.get(requestedCode)!;
-        const player = new Player(name);
+        const player = new Player(name, socket);
         room.players.push(player);
 
         socket.send(JSON.stringify({ type: "joined", roomCode: requestedCode }));
@@ -104,7 +106,45 @@ wss.on('connection', (socket, request) => {
 
     socket.on('message', (msg) => {
         const text = msg.toString();
-        console.log({ text });
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (err) {
+            console.error("Invalid JSON received:", text);
+            return;
+        }
+
+        const room = rooms.get(data.roomCode);
+        if (!room) {
+            console.error("Unknown room:", data.roomCode);
+            return;
+        }
+
+        switch (data.type) {
+            case "start":
+                console.log(`Starting game for room ${data.roomCode}`);
+                room.players.forEach((player) => {
+                    if (player.socket && player.socket.readyState === WebSocket.OPEN) {
+                        player.socket.send(JSON.stringify({ type: "gameStarted" }));
+                    }
+                });
+                break;
+            case "firstPrompt":
+                socket.send(JSON.stringify({type: "prompt", prompt: ""}))
+                break
+
+            case "answer":
+                console.log(`Answer: ${data.answer}`);
+                socket.send(JSON.stringify({type: "prompt", prompt: ""}))
+                break;
+
+            case "vote":
+                console.log(`Vote received for room ${data.roomCode}:`, data.choice);
+                break;
+
+            default:
+                console.warn("Unknown message type:", data.type);
+        }
     });
 
     socket.on('error', (err) => {

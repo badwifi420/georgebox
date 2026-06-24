@@ -13,7 +13,7 @@ const CreateRoom = () => {
     const handleJoin = async () => {
         try {
             await connect(roomCode, playerName, false);
-            navigate("/prompts");
+            navigate("/lobby");
         } catch (err) {
             console.error("Failed to connect:", err);
         }
@@ -21,7 +21,7 @@ const CreateRoom = () => {
     const handleCreate = async () => {
         try {
             await connect(null, null, true);
-            navigate("/lobby");
+            navigate("/hostLobby");
         } catch (err) {
             console.error("Failed to connect:", err);
         }

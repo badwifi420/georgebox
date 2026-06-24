@@ -13,9 +13,6 @@ const WebSocketProvider = ({ children }) => {
                 : `roomCode=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`;
             const ws = new WebSocket(`ws://192.168.178.27:8000?${query}`);
 
-            ws.addEventListener("open", () => {
-            });
-
             ws.addEventListener("message", (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === "joined") {
@@ -41,12 +38,8 @@ const WebSocketProvider = ({ children }) => {
         socket?.close();
     };
 
-    const sendPrompt = (prompt) => {
-        socket.send(JSON.stringify({type: "prompt", prompt, roomCode: roomId}));
-    }
-
     return (
-        <WebSocketContext value={{ socket, connect, disconnect, sendPrompt, roomId}}>
+        <WebSocketContext value={{ socket, connect, disconnect, roomId}}>
             {children}
         </WebSocketContext>
     );
