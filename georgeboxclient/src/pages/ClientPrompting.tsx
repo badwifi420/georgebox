@@ -28,7 +28,7 @@ const ClientPrompting = () => {
                 setPhaseEndsAt(data.phaseEndsAt);
             } else if (data.type === "promptPhaseEnd") {
                 setPhaseEndsAt(null);
-                navigate("/hostprompt")
+                navigate("/drafting");
             }
         };
 
