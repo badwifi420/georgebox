@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import express from 'express';
 import { URL } from 'url';
+import promptsData from './data/prompts.json' assert { type: 'json' };
+
 
 const app = express();
 app.use(express.json());
@@ -14,6 +16,13 @@ const server = app.listen(8000, () =>{
 });
 
 const wss = new WebSocketServer({ server });
+
+const allPrompts: string[] = promptsData.prompts;
+
+function getRandomPrompt(prompts: string[]): string {
+    const index = Math.floor(Math.random() * prompts.length);
+    return prompts[index];
+}
 
 function uid(): string {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -31,13 +40,11 @@ function generateRoomCode(): string {
 class Player {
     id: string;
     name: string;
-    answers: string[];
     socket: WebSocket;
 
     constructor(name: string, socket: WebSocket) {
         this.id = uid();
         this.name = name;
-        this.answers = [];
         this.socket = socket;
     }
 }
@@ -46,11 +53,17 @@ class Room {
     roomCode: string;
     players: Player[];
     hostSocket: WebSocket | null;
+    answerPool: string[];
+    promptPhaseActive: boolean;
+    phaseEndsAt: number | null;
 
     constructor() {
         this.roomCode = generateRoomCode();
         this.players = [];
         this.hostSocket = null;
+        this.answerPool = [];
+        this.promptPhaseActive = false;
+        this.phaseEndsAt = null;
     }
 }
 
@@ -129,15 +142,38 @@ wss.on('connection', (socket, request) => {
                     }
                 });
                 break;
-            case "firstPrompt":
-                socket.send(JSON.stringify({type: "prompt", prompt: ""}))
-                break
+            case "firstPrompt": {
+                const PHASE_DURATION_MS = 75000;
 
-            case "answer":
-                console.log(`Answer: ${data.answer}`);
-                socket.send(JSON.stringify({type: "prompt", prompt: ""}))
+                if (!room.promptPhaseActive) {
+                    room.promptPhaseActive = true;
+                    room.phaseEndsAt = Date.now() + PHASE_DURATION_MS;
+
+                    setTimeout(() => {
+                        room.promptPhaseActive = false;
+                        room.players.forEach((p) => {
+                            if (p.socket.readyState === WebSocket.OPEN) {
+                                p.socket.send(JSON.stringify({ type: "promptPhaseEnd" }));
+                            }
+                        });
+                    }, PHASE_DURATION_MS);
+                }
+
+                const prompt = getRandomPrompt(allPrompts);
+                socket.send(JSON.stringify({
+                    type: "prompt",
+                    prompt,
+                    phaseEndsAt: room.phaseEndsAt
+                }));
                 break;
-
+            }
+            case "answer": {
+                console.log(`Answer: ${data.answer}`);
+                room.answerPool.push(data.answer);
+                const prompt = getRandomPrompt(allPrompts);
+                socket.send(JSON.stringify({type: "prompt", prompt: prompt, phaseEndsAt: room.phaseEndsAt}))
+                break;
+            }
             case "vote":
                 console.log(`Vote received for room ${data.roomCode}:`, data.choice);
                 break;
