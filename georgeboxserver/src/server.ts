@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import express from 'express';
 import { URL } from 'url';
 import promptsData from './data/prompts.json' assert { type: 'json' };
+import topicsData from './data/draftTopics.json' assert { type: 'json' };
 
 
 const app = express();
@@ -18,10 +19,16 @@ const server = app.listen(8000, () =>{
 const wss = new WebSocketServer({ server });
 
 const allPrompts: string[] = promptsData.prompts;
+const allTopics: string[] = topicsData.draftTopics;
 
 function getRandomPrompt(prompts: string[]): string {
     const index = Math.floor(Math.random() * prompts.length);
     return prompts[index];
+}
+function getRandomSubset<T>(arr: T[], fraction: number): T[] {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    const count = Math.max(2, Math.floor(arr.length * fraction));
+    return shuffled.slice(0, count);
 }
 
 function uid(): string {
@@ -56,6 +63,8 @@ class Room {
     answerPool: string[];
     promptPhaseActive: boolean;
     phaseEndsAt: number | null;
+    pairs: [Player, Player][];
+
 
     constructor() {
         this.roomCode = generateRoomCode();
@@ -64,6 +73,7 @@ class Room {
         this.answerPool = [];
         this.promptPhaseActive = false;
         this.phaseEndsAt = null;
+        this.pairs = [];
     }
 }
 
@@ -143,7 +153,7 @@ wss.on('connection', (socket, request) => {
                 });
                 break;
             case "firstPrompt": {
-                const PHASE_DURATION_MS = 75000;
+                const PHASE_DURATION_MS = 750000;
 
                 if (!room.promptPhaseActive) {
                     room.promptPhaseActive = true;
@@ -172,6 +182,30 @@ wss.on('connection', (socket, request) => {
                 room.answerPool.push(data.answer);
                 const prompt = getRandomPrompt(allPrompts);
                 socket.send(JSON.stringify({type: "prompt", prompt: prompt, phaseEndsAt: room.phaseEndsAt}))
+                break;
+            }
+            case "draftload": {
+                room.pairs = [];
+
+                const shuffled = [...room.players].sort(() => Math.random() - 0.5);
+                for (let i = 0; i < shuffled.length - 1; i += 2) {
+                    room.pairs.push([shuffled[i], shuffled[i + 1]]);
+                }
+
+                const topic = getRandomPrompt(allTopics);
+                const draftPool = getRandomSubset(room.answerPool, 0.5);
+
+                room.pairs.forEach(([playerA, playerB]) => {
+                    const payloadA = { type: "draftStart", topic, draftPool, player: playerA, opponent: playerB};
+                    const payloadB = { type: "draftStart", topic, draftPool, player: playerB, opponent: playerA};
+
+                    if (playerA.socket.readyState === WebSocket.OPEN) playerA.socket.send(JSON.stringify(payloadA));
+                    if (playerB.socket.readyState === WebSocket.OPEN) playerB.socket.send(JSON.stringify(payloadB));
+                });
+
+                if (room.hostSocket && room.hostSocket.readyState === WebSocket.OPEN) {
+                    room.hostSocket.send(JSON.stringify({ type: "draftStart", topic, pairs: room.pairs.map(([a, b]) => [a.name, b.name]) }));
+                }
                 break;
             }
             case "vote":
