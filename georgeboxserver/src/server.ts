@@ -48,11 +48,13 @@ class Player {
     id: string;
     name: string;
     socket: WebSocket;
+    selections: string[];
 
     constructor(name: string, socket: WebSocket) {
         this.id = uid();
         this.name = name;
         this.socket = socket;
+        this.selections = [];
     }
 }
 
@@ -61,6 +63,7 @@ class Room {
     players: Player[];
     hostSocket: WebSocket | null;
     answerPool: string[];
+    draftPool: string[];
     promptPhaseActive: boolean;
     phaseEndsAt: number | null;
     pairs: [Player, Player][];
@@ -74,6 +77,7 @@ class Room {
         this.promptPhaseActive = false;
         this.phaseEndsAt = null;
         this.pairs = [];
+        this.draftPool = [];
     }
 }
 
@@ -153,7 +157,7 @@ wss.on('connection', (socket, request) => {
                 });
                 break;
             case "firstPrompt": {
-                const PHASE_DURATION_MS = 750000;
+                const PHASE_DURATION_MS = 30000;
 
                 if (!room.promptPhaseActive) {
                     room.promptPhaseActive = true;
@@ -194,18 +198,58 @@ wss.on('connection', (socket, request) => {
 
                 const topic = getRandomPrompt(allTopics);
                 const draftPool = getRandomSubset(room.answerPool, 0.5);
+                room.draftPool = draftPool;
 
                 room.pairs.forEach(([playerA, playerB]) => {
-                    const payloadA = { type: "draftStart", topic, draftPool, player: playerA, opponent: playerB};
-                    const payloadB = { type: "draftStart", topic, draftPool, player: playerB, opponent: playerA};
+                    const payloadA = { type: "draftStart", topic, draftPool, player: playerA.name, opponent: playerB.name, turn: playerA.name};
+                    const payloadB = { type: "draftStart", topic, draftPool, player: playerB.name, opponent: playerA.name, turn: playerA.name};
 
                     if (playerA.socket.readyState === WebSocket.OPEN) playerA.socket.send(JSON.stringify(payloadA));
                     if (playerB.socket.readyState === WebSocket.OPEN) playerB.socket.send(JSON.stringify(payloadB));
                 });
-
-                if (room.hostSocket && room.hostSocket.readyState === WebSocket.OPEN) {
-                    room.hostSocket.send(JSON.stringify({ type: "draftStart", topic, pairs: room.pairs.map(([a, b]) => [a.name, b.name]) }));
+                break;
+            }
+            case "selection": {
+                const playerA = room.players.find(p => p.socket === socket);
+                if (!playerA) {
+                    console.error("Player not found for this socket");
+                    return;
                 }
+                if (!room.draftPool.includes(data.selection)) {
+                    console.warn(`Invalid selection: ${data.selection}`);
+                    return;
+                }
+                const pair = room.pairs.find(([a, b]) => a.id === playerA.id || b.id === playerA.id);
+                if (!pair) {
+                    console.error("Player not in any pair");
+                    return;
+                }
+                const playerB = pair[0].id === playerA.id ? pair[1] : pair[0];
+
+                playerA.selections.push(data.selection);
+                room.draftPool = room.draftPool.filter(a => a !== data.selection);
+
+
+                const updateA = JSON.stringify({
+                    type: "draftUpdate",
+                    draftPool: room.draftPool,
+                    turn: false,
+                    myPicks: playerA.selections,
+                    opponentPicks: playerB.selections
+                });
+
+                const updateB = JSON.stringify({
+                    type: "draftUpdate",
+                    draftPool: room.draftPool,
+                    turn: true,
+                    myPicks: playerB.selections,
+                    opponentPicks: playerA.selections
+                });
+
+                if (playerA.socket.readyState === WebSocket.OPEN) playerA.socket.send(updateA);
+                if (playerB.socket.readyState === WebSocket.OPEN) playerB.socket.send(updateB);
+
+                console.log(`${playerA.name} picked "${data.selection}" — now ${playerB.name}'s turn`);
                 break;
             }
             case "vote":
