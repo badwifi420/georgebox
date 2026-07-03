@@ -15,6 +15,7 @@ const ClientDrafting = () => {
     const [myTurn, setMyTurn] = useState(false);
     const [playerPicks, setPlayerPicks] = useState([]);
     const [opponentPicks, setOpponentPicks] = useState([]);
+    const [isDraftComplete, setIsDraftComplete] = useState(false);
 
     const navigate = useNavigate();
 
@@ -38,6 +39,9 @@ const ClientDrafting = () => {
                 setMyTurn((data.turn === data.player))
             } else if (data.type === "draftUpdate") {
                 console.log("draftStart received:", data);
+                if (data.draftPool.length === 0) {
+                    setIsDraftComplete(true);
+                }
                 setOptions(data.draftPool);
                 setMyTurn(data.turn);
                 setPlayerPicks(data.myPicks);
@@ -54,41 +58,66 @@ const ClientDrafting = () => {
         setSelection("");
     }
     return (
-        <Box sx={{ p: 4, maxWidth: 400, margin: "0 auto" }}>
-            <Typography variant="h4" sx={{ mb: 3 }}>{topic}</Typography>
-            <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-                <Stack sx={{ alignItems: "center" }}>
-                    <Avatar sx={{ width: 56, height: 56, bgcolor: "primary.main" }}>
-                        {player ? player[0].toUpperCase() : <PersonIcon />}
-                    </Avatar>
-                    <Typography variant="body2">{player || "You"}</Typography>
-                    <Typography variant="body2" sx={{ flexGrow: 1 }}>{playerPicks}</Typography>
-                </Stack>
+        <Stack sx={{
+            p: 4,
+            pt: 10,
+            maxWidth: 700,
+            width: "100%",
+            margin: "0 auto",
+            alignItems: "center",
+        }}>
+        <Stack direction="row" sx={{ width: "100%", alignItems: "flex-start", gap: 2 }}>
 
-                <Typography variant="h5" sx={{ alignSelf: "center" }}>vs</Typography>
-
-                <Stack sx={{ alignItems: "center" }}>
-                    <Avatar sx={{ width: 56, height: 56, bgcolor: "error.main" }}>
-                        {opponent ? opponent[0].toUpperCase() : <PersonIcon />}
-                    </Avatar>
-                    <Typography variant="body2">{opponent || "Opponent"}</Typography>
-                    <Typography variant="body2" sx={{ flexGrow: 1 }}>{opponentPicks}</Typography>
-                </Stack>
+            <Stack sx={{ alignItems: "center", flex: 1 }}>
+                <Avatar sx={{ width: 56, height: 56, bgcolor: "primary.main" }}>
+                    {player ? player[0].toUpperCase() : <PersonIcon />}
+                </Avatar>
+                <Typography variant="body2">{player || "You"}</Typography>
+                {playerPicks.map((pick, i) => (
+                    <Typography variant="body2" key={i} sx={{ mt: 0.5 }}>{pick}</Typography>
+                ))}
             </Stack>
-            {options.map((option, i) => (
-                <Button key={i} onClick={() => setSelection(option)} variant={selection === option ? "contained" : "outlined"} fullWidth sx={{ mb: 1 }}>
-                    {option}
+
+            <Stack sx={{ alignItems: "center", flex: 1 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>vs</Typography>
+                {options.map((option, i) => (
+                    <Button
+                        key={i}
+                        onClick={() => setSelection(option)}
+                        variant={selection === option ? "contained" : "outlined"}
+                        fullWidth
+                        sx={{ mb: 1 }}
+                        disabled={!myTurn}
+                    >
+                        {option}
+                    </Button>
+                ))}
+                <Button
+                    onClick={handleSend}
+                    fullWidth
+                    variant="contained"
+                    disabled={isDraftComplete || !myTurn || !selection}
+                    sx={{ mt: 1 }}
+                >
+                    {isDraftComplete
+                        ? "Waiting for all players to finish drafting..."
+                        : myTurn
+                            ? "Confirm pick"
+                            : "Opponent's turn..."}
                 </Button>
-            ))}
-            <Button
-                onClick={handleSend}
-                fullWidth
-                disabled={!myTurn || !selection}
-            >
-                {myTurn ? "Confirm pick" : "Opponent's turn..."}
-            </Button>
-        </Box>
-    );
+            </Stack>
+
+            <Stack sx={{ alignItems: "center", flex: 1 }}>
+                <Avatar sx={{ width: 56, height: 56, bgcolor: "error.main" }}>
+                    {opponent ? opponent[0].toUpperCase() : <PersonIcon />}
+                </Avatar>
+                <Typography variant="body2">{opponent || "Opponent"}</Typography>
+                {opponentPicks.map((pick, i) => (
+                    <Typography variant="body2" key={i} sx={{ mt: 0.5 }}>{pick}</Typography>
+                ))}
+            </Stack>
+        </Stack>
+        </Stack>);
 };
 
 export default ClientDrafting;

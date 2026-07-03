@@ -67,6 +67,7 @@ class Room {
     promptPhaseActive: boolean;
     phaseEndsAt: number | null;
     pairs: [Player, Player][];
+    pairsFinishedDrafting: number | null;
 
 
     constructor() {
@@ -78,6 +79,7 @@ class Room {
         this.phaseEndsAt = null;
         this.pairs = [];
         this.draftPool = [];
+        this.pairsFinishedDrafting = 0;
     }
 }
 
@@ -228,8 +230,12 @@ wss.on('connection', (socket, request) => {
 
                 playerA.selections.push(data.selection);
                 room.draftPool = room.draftPool.filter(a => a !== data.selection);
-
-
+                if (room.draftPool.length === 0) {
+                    room.pairsFinishedDrafting += 1;
+                    if (room.pairsFinishedDrafting >= room.pairs.length) {
+                        //enter voting phase
+                    }
+                }
                 const updateA = JSON.stringify({
                     type: "draftUpdate",
                     draftPool: room.draftPool,
