@@ -30,6 +30,9 @@ function getRandomSubset<T>(arr: T[], fraction: number): T[] {
     const count = Math.max(2, Math.floor(arr.length * fraction));
     return shuffled.slice(0, count);
 }
+function getPairIndex(pairs: [Player, Player][], playerId: string): number {
+    return pairs.findIndex(([a, b]) => a.id === playerId || b.id === playerId);
+}
 
 function uid(): string {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -49,12 +52,14 @@ class Player {
     name: string;
     socket: WebSocket;
     selections: string[];
+    topic: string;
 
     constructor(name: string, socket: WebSocket) {
         this.id = uid();
         this.name = name;
         this.socket = socket;
         this.selections = [];
+        this.topic = '';
     }
 }
 
@@ -63,11 +68,12 @@ class Room {
     players: Player[];
     hostSocket: WebSocket | null;
     answerPool: string[];
-    draftPool: string[];
+    draftPools: string[][];
     promptPhaseActive: boolean;
     phaseEndsAt: number | null;
     pairs: [Player, Player][];
     pairsFinishedDrafting: number | null;
+    pairIndex: number;
 
 
     constructor() {
@@ -78,8 +84,9 @@ class Room {
         this.promptPhaseActive = false;
         this.phaseEndsAt = null;
         this.pairs = [];
-        this.draftPool = [];
+        this.draftPools = [];
         this.pairsFinishedDrafting = 0;
+        this.pairIndex = 0;
     }
 }
 
@@ -192,17 +199,17 @@ wss.on('connection', (socket, request) => {
             }
             case "draftload": {
                 room.pairs = [];
+                room.draftPools = [];
 
                 const shuffled = [...room.players].sort(() => Math.random() - 0.5);
                 for (let i = 0; i < shuffled.length - 1; i += 2) {
                     room.pairs.push([shuffled[i], shuffled[i + 1]]);
                 }
 
-                const topic = getRandomPrompt(allTopics);
-                const draftPool = getRandomSubset(room.answerPool, 0.5);
-                room.draftPool = draftPool;
-
                 room.pairs.forEach(([playerA, playerB]) => {
+                    const topic = getRandomPrompt(allTopics);
+                    const draftPool = getRandomSubset(room.answerPool, 0.5);
+                    room.draftPools.push(draftPool);
                     const payloadA = { type: "draftStart", topic, draftPool, player: playerA.name, opponent: playerB.name, turn: playerA.name};
                     const payloadB = { type: "draftStart", topic, draftPool, player: playerB.name, opponent: playerA.name, turn: playerA.name};
 
@@ -217,28 +224,42 @@ wss.on('connection', (socket, request) => {
                     console.error("Player not found for this socket");
                     return;
                 }
-                if (!room.draftPool.includes(data.selection)) {
-                    console.warn(`Invalid selection: ${data.selection}`);
-                    return;
-                }
-                const pair = room.pairs.find(([a, b]) => a.id === playerA.id || b.id === playerA.id);
-                if (!pair) {
+
+                const pairIndex = getPairIndex(room.pairs, playerA.id);
+                if (pairIndex === -1) {
                     console.error("Player not in any pair");
                     return;
                 }
+
+                const pair = room.pairs[pairIndex];
                 const playerB = pair[0].id === playerA.id ? pair[1] : pair[0];
+                const draftPool = room.draftPools[pairIndex];
+
+                if (!draftPool.includes(data.selection)) {
+                    console.warn(`Invalid selection: ${data.selection}`);
+                    return;
+                }
 
                 playerA.selections.push(data.selection);
-                room.draftPool = room.draftPool.filter(a => a !== data.selection);
-                if (room.draftPool.length === 0) {
+                room.draftPools[pairIndex] = draftPool.filter(a => a !== data.selection);
+
+                if (room.draftPools[pairIndex].length === 0) {
                     room.pairsFinishedDrafting += 1;
                     if (room.pairsFinishedDrafting >= room.pairs.length) {
-                        //enter voting phase
+                        room.players.forEach((p) => {
+                            if (p.socket.readyState === WebSocket.OPEN) {
+                                p.socket.send(JSON.stringify({ type: "draftDone" }));
+                            }
+                        });
+                        break;
                     }
                 }
+
+                const remainingPool = room.draftPools[pairIndex];
+
                 const updateA = JSON.stringify({
                     type: "draftUpdate",
-                    draftPool: room.draftPool,
+                    remainingPool,
                     turn: false,
                     myPicks: playerA.selections,
                     opponentPicks: playerB.selections
@@ -246,7 +267,7 @@ wss.on('connection', (socket, request) => {
 
                 const updateB = JSON.stringify({
                     type: "draftUpdate",
-                    draftPool: room.draftPool,
+                    remainingPool,
                     turn: true,
                     myPicks: playerB.selections,
                     opponentPicks: playerA.selections
@@ -256,6 +277,36 @@ wss.on('connection', (socket, request) => {
                 if (playerB.socket.readyState === WebSocket.OPEN) playerB.socket.send(updateB);
 
                 console.log(`${playerA.name} picked "${data.selection}" — now ${playerB.name}'s turn`);
+                break;
+            }
+            case "voteLoad": {
+                const pair = room.pairs[room.pairIndex];
+                if (!pair) {
+                    console.error("No pair at index", room.pairIndex);
+                    return;
+                }
+                const [playerA, playerB] = pair;
+
+                const player = room.players.find(p => p.socket === socket);
+                if (!player) return;
+
+                const isDrafter = player.id === playerA.id || player.id === playerB.id;
+
+                const payload = JSON.stringify({
+                    type: "voteStart",
+                    topic: room.currentTopic,
+                    teamA: {
+                        player: playerA.name,
+                        picks: room.draftPicks.get(playerA.id) ?? []
+                    },
+                    teamB: {
+                        player: playerB.name,
+                        picks: room.draftPicks.get(playerB.id) ?? []
+                    },
+                    isDrafter
+                });
+
+                socket.send(payload);
                 break;
             }
             case "vote":
@@ -276,4 +327,4 @@ wss.on('connection', (socket, request) => {
     });
 });
 
-console.log('WebSocket server is live on ws://192.168.178.27:8000');
+console.log('WebSocket server is live on ws://localhost:8000');

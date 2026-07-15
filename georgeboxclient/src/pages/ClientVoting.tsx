@@ -7,25 +7,37 @@ import PersonIcon from '@mui/icons-material/Person';
 
 const ClientVoting = () => {
 
-    const { socket } = useWebSocket();
+    const { socket, roomId } = useWebSocket();
     const [playerTwo, setPlayerTwo] = useState("");
     const [playerOne, setPlayerOne] = useState("");
+    const [selectedPlayer, setSelectedPlayer] = useState("");
+    const [isMe , setIsMe] = useState(false);
 
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!socket) return;
+        socket.send(JSON.stringify({ type: "votingLoad", roomCode: roomId }));
+    }, []);
 
     useEffect(() => {
         if (!socket) return;
 
         const handleMessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.type === "gameStarted") {
-                navigate("/prompts");
+            if (data.type === "votingStart") {
+                setPlayerOne(data.player);
+                setPlayerTwo(data.opponent)
             }
         };
 
         socket.addEventListener("message", handleMessage);
         return () => socket.removeEventListener("message", handleMessage);
     }, [socket]);
+
+    const handleClick = () => {
+        socket.send(JSON.stringify({type: "vote", player:selectedPlayer, roomCode: roomId}));
+    }
 
 
     return (

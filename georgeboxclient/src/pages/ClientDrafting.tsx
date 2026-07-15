@@ -21,8 +21,8 @@ const ClientDrafting = () => {
 
     useEffect(() => {
         if (!socket) return;
-        socket.send(JSON.stringify({type: "draftload", roomCode: roomId}));
-    }, [socket]);
+        socket.send(JSON.stringify({ type: "draftload", roomCode: roomId }));
+    }, []);
 
     useEffect(() => {
         if (!socket) return;
@@ -38,14 +38,15 @@ const ClientDrafting = () => {
                 setTopic(data.topic);
                 setMyTurn((data.turn === data.player))
             } else if (data.type === "draftUpdate") {
-                console.log("draftStart received:", data);
-                if (data.draftPool.length === 0) {
+                if (data.remainingPool.length === 0) {
                     setIsDraftComplete(true);
                 }
-                setOptions(data.draftPool);
+                setOptions(data.remainingPool);
                 setMyTurn(data.turn);
                 setPlayerPicks(data.myPicks);
                 setOpponentPicks(data.opponentPicks);
+            } else if (data.type === "draftDone") {
+                navigate("/voting");
             }
         };
 

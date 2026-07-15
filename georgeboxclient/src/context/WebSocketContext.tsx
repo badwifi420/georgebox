@@ -11,7 +11,7 @@ const WebSocketProvider = ({ children }) => {
             const query = isCreating
                 ? `create=true&name=${encodeURIComponent(playerName)}`
                 : `roomCode=${encodeURIComponent(roomCode)}&name=${encodeURIComponent(playerName)}`;
-            const ws = new WebSocket(`ws://192.168.178.27:8000?${query}`);
+            const ws = new WebSocket(`ws://localhost:8000?${query}`);
 
             ws.addEventListener("message", (event) => {
                 const data = JSON.parse(event.data);
