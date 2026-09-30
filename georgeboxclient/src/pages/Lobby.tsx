@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import PersonIcon from '@mui/icons-material/Person';
 
 const MAX_PLAYERS = 8;
+const MIN_PLAYERS = 2;
 
 const Lobby = () => {
     const { socket, roomId } = useWebSocket();
@@ -72,7 +73,7 @@ const Lobby = () => {
                 ))}
             </Box>
 
-            <Button onClick={handleStart} fullWidth variant="contained" disabled={players.length === 0}>
+            <Button onClick={handleStart} fullWidth variant="contained" disabled={players.length < MIN_PLAYERS}>
                 Start Game
             </Button>
         </Box>

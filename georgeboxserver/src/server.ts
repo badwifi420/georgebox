@@ -294,22 +294,16 @@ wss.on('connection', (socket, request) => {
 
                 const payload = JSON.stringify({
                     type: "voteStart",
-                    topic: room.currentTopic,
-                    teamA: {
-                        player: playerA.name,
-                        picks: room.draftPicks.get(playerA.id) ?? []
-                    },
-                    teamB: {
-                        player: playerB.name,
-                        picks: room.draftPicks.get(playerB.id) ?? []
-                    },
+                    topic: room.topics[room.pairIndex],
+                    teamA: { player: playerA.name, picks: playerA.selections },
+                    teamB: { player: playerB.name, picks: playerB.selections },
                     isDrafter
                 });
 
                 socket.send(payload);
                 break;
             }
-            case "vote":
+            case vote:
                 console.log(`Vote received for room ${data.roomCode}:`, data.choice);
                 break;
 
